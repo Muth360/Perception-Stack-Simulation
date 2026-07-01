@@ -2,7 +2,7 @@
 #include "perception_sim/logger.hpp"
 #include "perception_sim/timing.hpp"
 
-#include <pcl/segmentation/extraction_clusters.h>
+#include <pcl/segmentation/extract_clusters.h>
 #include <pcl/search/kdtree.h>
 
 namespace perception_sim {
