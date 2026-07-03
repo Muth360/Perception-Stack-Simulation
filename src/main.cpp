@@ -1,10 +1,4 @@
 // -----------------------------------------------------------------------------
-// main.cpp
-//
-// Entry point: generates (or loads) a point cloud, runs the full pipeline,
-// and prints timing statistics. See README / scripts/run_pipeline.sh for
-// usage.
-// -----------------------------------------------------------------------------
 #include "perception_sim/pipeline.hpp"
 #include "perception_sim/point_cloud_io.hpp"
 #include "perception_sim/logger.hpp"
@@ -17,46 +11,75 @@
 int main(int argc, char** argv) {
     using namespace perception_sim;
 
-    Logger::instance().setLogFile("data/perception_sim.log");
-    Logger::instance().info("main", "perception_sim starting");
-
-    // Initializes a fresh run_id and CSV output directory. Every
-    // matrix multiplication, centroid, covariance matrix, PCA eigenvalue/
-    // eigenvector, bounding box, and cluster center computed from this
-    // point on is appended to data/csv/*.csv tagged with this run_id, so
-    // separate runs (e.g. stock Eigen vs. a modified Eigen) can be
-    // compared by filtering on run_id.
+    // ============================================================
+    // 1. Start CSV run FIRST (this generates run_id)
+    // ============================================================
     CsvLogger::instance().beginRun("data/csv");
-    Logger::instance().info("main", "csv instrumentation run_id=" + CsvLogger::instance().runId());
 
-    // Optional: pass a .pcd/.ply path as argv[1] to use a real cloud instead
-    // of the synthetic generator.
+    std::string run_id = CsvLogger::instance().runId();
+
+    // ============================================================
+    // 2. Initialize Logger with SAME run_id
+    // ============================================================
+    Logger::instance().setRunId(run_id);
+    Logger::instance().setLogFile("data/log.txt");
+
+    Logger::instance().log(LogLevel::Info, "main",
+        "perception_sim starting run_id=" + run_id);
+
+    Logger::instance().log(LogLevel::Info, "main",
+        "csv instrumentation run_id=" + run_id);
+
+    // ============================================================
+    // 3. Input cloud
+    // ============================================================
     CloudPtr input_cloud;
+
     if (argc > 1) {
-        const std::string path = argv[1];
-        input_cloud = io::loadPointCloud(path);
+        input_cloud = io::loadPointCloud(argv[1]);
     } else {
-        input_cloud = io::generateSyntheticCloud(/*num_objects=*/5,
-                                                   /*points_per_object=*/250,
-                                                   /*spread=*/10.0,
-                                                   /*random_seed=*/42);
+        input_cloud = io::generateSyntheticCloud(
+            5, 250, 10.0, 42
+        );
     }
 
+    // ============================================================
+    // 4. Pipeline config (you can extend later)
+    // ============================================================
     PipelineConfig config;
-    config.output_image_path = "data/output_scene.png";
 
+    // IMPORTANT: now per-run output (optional but recommended)
+    config.output_image_path =
+        "data/runs/" + run_id + "/output_scene.png";
+
+    // ============================================================
+    // 5. Run pipeline
+    // ============================================================
     PipelineResult result = runPipeline(input_cloud, config);
 
+    // ============================================================
+    // 6. Print results
+    // ============================================================
     std::cout << "\nDetected " << result.objects.size() << " object(s):\n";
+
     for (std::size_t i = 0; i < result.objects.size(); ++i) {
         const auto& obj = result.objects[i];
+
         std::cout << "  [" << i << "] points=" << obj.num_points
-                  << " centroid=(" << obj.pca_result.centroid.x << ", "
-                  << obj.pca_result.centroid.y << ", " << obj.pca_result.centroid.z << ")"
-                  << " half_extents=(" << obj.box.half_extents.x << ", "
-                  << obj.box.half_extents.y << ", " << obj.box.half_extents.z << ")\n";
+                  << " centroid=("
+                  << obj.pca_result.centroid.x << ", "
+                  << obj.pca_result.centroid.y << ", "
+                  << obj.pca_result.centroid.z << ")"
+                  << " half_extents=("
+                  << obj.box.half_extents.x << ", "
+                  << obj.box.half_extents.y << ", "
+                  << obj.box.half_extents.z << ")\n";
     }
 
+    // ============================================================
+    // 7. Timing
+    // ============================================================
     TimingStats::instance().printSummary();
+
     return 0;
 }
