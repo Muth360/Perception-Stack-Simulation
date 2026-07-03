@@ -25,6 +25,7 @@ add_definitions(${PCL_DEFINITIONS})
 # ---------------------------------------------------------------------------
 add_library(perception_sim_core
     src/eigen_ops.cpp
+    src/csv_logger.cpp
     src/point_cloud_io.cpp
     src/filtering.cpp
     src/clustering.cpp
@@ -88,4 +89,3 @@ if(BUILD_TESTS)
     include(GoogleTest)
     gtest_discover_tests(perception_sim_tests)
 endif()
-
