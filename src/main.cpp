@@ -50,7 +50,7 @@ int main(int argc, char** argv) {
 
     // IMPORTANT: now per-run output (optional but recommended)
     config.output_image_path =
-        "data/runs/" + run_id + "/output_scene.png";
+    "data/runs/" + run_id + "/output_scene_" + run_id + ".png";
 
     // ============================================================
     // 5. Run pipeline
