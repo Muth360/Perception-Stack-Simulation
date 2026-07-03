@@ -9,6 +9,9 @@ namespace perception_sim {
 
 enum class LogLevel { Debug, Info, Warn, Error };
 
+// -----------------------------------------------------------------------------
+// Logger (text + file logging)
+// -----------------------------------------------------------------------------
 class Logger {
 public:
     static Logger& instance();
@@ -33,6 +36,26 @@ private:
     bool file_open_ = false;
 
     std::string run_id_;
+};
+
+// -----------------------------------------------------------------------------
+// LogFields (THIS WAS MISSING — THIS FIXES YOUR BUILD ERROR)
+// -----------------------------------------------------------------------------
+class LogFields {
+public:
+    template <typename T>
+    LogFields& add(const std::string& key, const T& value) {
+        if (!first_) oss_ << ", ";
+        oss_ << key << "=" << value;
+        first_ = false;
+        return *this;
+    }
+
+    std::string str() const { return oss_.str(); }
+
+private:
+    std::ostringstream oss_;
+    bool first_ = true;
 };
 
 } // namespace perception_sim
