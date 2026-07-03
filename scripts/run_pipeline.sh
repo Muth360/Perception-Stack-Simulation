@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# -----------------------------------------------------------------------------
-# run_pipeline.sh
-# -----------------------------------------------------------------------------
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -12,17 +9,14 @@ if [[ ! -x "${BIN}" ]]; then
     exit 1
 fi
 
-mkdir -p "${ROOT_DIR}/data"
 cd "${ROOT_DIR}"
 
+mkdir -p data/runs data/csv
+
 # ------------------------------------------------------------
-# Run with varying seed if no input file provided
+# Run multiple experiments with different seeds
 # ------------------------------------------------------------
-if [[ $# -ge 1 ]]; then
-    "${BIN}" "$1"
-else
-    for i in {0..5}; do
-        echo "Running seed $i"
-        "${BIN}" dummy "$i"
-    done
-fi
+for i in {0..5}; do
+    echo "Running seed $i"
+    "${BIN}" synthetic "$i"
+done
