@@ -1,13 +1,6 @@
 #!/usr/bin/env bash
 # -----------------------------------------------------------------------------
 # run_pipeline.sh
-#
-# Runs the perception_sim_app executable, optionally against a real point
-# cloud file (.pcd/.ply). Without an argument, a synthetic cloud is used.
-#
-# Usage:
-#   ./scripts/run_pipeline.sh
-#   ./scripts/run_pipeline.sh data/my_scan.pcd
 # -----------------------------------------------------------------------------
 set -euo pipefail
 
@@ -22,8 +15,14 @@ fi
 mkdir -p "${ROOT_DIR}/data"
 cd "${ROOT_DIR}"
 
+# ------------------------------------------------------------
+# Run with varying seed if no input file provided
+# ------------------------------------------------------------
 if [[ $# -ge 1 ]]; then
     "${BIN}" "$1"
 else
-    "${BIN}"
+    for i in {0..5}; do
+        echo "Running seed $i"
+        "${BIN}" dummy "$i"
+    done
 fi
