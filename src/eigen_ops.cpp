@@ -108,7 +108,8 @@ std::vector<Vec3> transformToLocalFrame(const std::vector<Vec3>& points,
                                          const std::string& context) {
     const Eigen::Vector3d mu = toEigen(mean);
     const Eigen::Matrix3d R = toEigen(axes); // columns = axes
-    const Mat3 R_transpose = fromEigen(R.transpose());
+    const Eigen::Matrix3d Rt = R.transpose();
+    const Mat3 R_transpose = fromEigen(Rt);
 
     std::vector<Vec3> out;
     out.reserve(points.size());
