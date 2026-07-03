@@ -21,7 +21,8 @@ int main(int argc, char** argv) {
     // 2. Logger setup (same run_id)
     // ------------------------------------------------------------
     Logger::instance().setRunId(run_id);
-    Logger::instance().setLogFile("data/log.txt");
+    std::string log_path = run_dir + "/log_" + run_id + ".txt";
+    Logger::instance().setLogFile(log_path);
 
     Logger::instance().info("main", "run_id=" + run_id);
 
@@ -33,7 +34,8 @@ int main(int argc, char** argv) {
     if (argc > 1) {
         input_cloud = io::loadPointCloud(argv[1]);
     } else {
-        input_cloud = io::generateSyntheticCloud(5, 250, 10.0, 42);
+        input_cloud = io::generateSyntheticCloud(5, 250, 10.0,
+    static_cast<unsigned>(std::time(nullptr)));
     }
 
     // ------------------------------------------------------------
