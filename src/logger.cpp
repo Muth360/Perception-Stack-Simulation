@@ -21,11 +21,11 @@ std::string levelToString(LogLevel level) {
 }
 
 std::string timestamp() {
-    const auto now = std::chrono::system_clock::now();
-    const auto t = std::chrono::system_clock::to_time_t(now);
+    auto now = std::chrono::system_clock::now();
+    auto t = std::chrono::system_clock::to_time_t(now);
 
     std::tm tm{};
-    localtime_r(&t, &tm);  // thread-safe version
+    localtime_r(&t, &tm);
 
     std::ostringstream oss;
     oss << std::put_time(&tm, "%H:%M:%S");
@@ -36,49 +36,39 @@ std::string timestamp() {
 
 
 Logger& Logger::instance() {
-    static Logger logger;
-    return logger;
+    static Logger instance;
+    return instance;
 }
 
 
-// Set run ID (used for folder naming)
 void Logger::setRunId(const std::string& run_id) {
     std::lock_guard<std::mutex> lock(mutex_);
     run_id_ = run_id;
 }
 
 
-// Set log file (now run-aware)
 void Logger::setLogFile(const std::string& base_path) {
     std::lock_guard<std::mutex> lock(mutex_);
 
-    if (file_.is_open()) {
-        file_.close();
-    }
-
+    if (file_.is_open()) file_.close();
     file_open_ = false;
 
-    // If no run_id, fallback to base path
-    std::string final_path = base_path;
-
-    if (!run_id_.empty()) {
-        std::string dir = "data/runs/" + run_id_;
-
-        std::filesystem::create_directories(dir);
-
-        final_path = dir + "/log.txt";
+    if (run_id_.empty()) {
+        file_.open(base_path, std::ios::out | std::ios::trunc);
+        file_open_ = file_.is_open();
+        return;
     }
 
-    file_.open(final_path, std::ios::out | std::ios::trunc);
+    std::string dir = "data/runs/" + run_id_;
+    std::filesystem::create_directories(dir);
+
+    std::string path = dir + "/log_" + run_id_ + ".txt";
+
+    file_.open(path, std::ios::out | std::ios::trunc);
     file_open_ = file_.is_open();
-
-    if (!file_open_) {
-        std::cerr << "Failed to open log file: " << final_path << std::endl;
-    }
 }
 
 
-// Main log function
 void Logger::log(LogLevel level,
                  const std::string& tag,
                  const std::string& message) {
