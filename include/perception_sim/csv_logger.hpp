@@ -1,26 +1,4 @@
 #pragma once
-// -----------------------------------------------------------------------------
-// csv_logger.hpp
-//
-// Structured CSV instrumentation for every numerically interesting operation
-// in the pipeline. Distinct from Logger (human-readable text log): this
-// writes one row per event to a dedicated CSV file per category, tagged with
-// a run_id, so multiple runs (e.g. stock Eigen vs. a modified Eigen) can be
-// appended to the same files and compared/diffed by run_id afterward.
-//
-// Depends only on eigen_ops.hpp for the Vec3/Mat3 plain data types - it does
-// NOT include any Eigen header itself, preserving the isolation boundary
-// described in eigen_ops.hpp.
-//
-// Categories (one CSV file each, under the configured output directory):
-//   matrix_multiplications.csv  - every matrix-vector multiply (frame transforms)
-//   centroids.csv                - every centroid calculation
-//   covariance_matrices.csv      - every covariance matrix
-//   pca_eigenvalues.csv          - every PCA eigenvalue triple
-//   pca_eigenvectors.csv         - every PCA eigenvector basis (3x3)
-//   bounding_boxes.csv           - every oriented bounding box
-//   cluster_centers.csv          - every finalized per-object cluster center
-// -----------------------------------------------------------------------------
 
 #include "perception_sim/eigen_ops.hpp"
 
@@ -37,15 +15,16 @@ class CsvLogger {
 public:
     static CsvLogger& instance();
 
-    // Sets the output directory (created if missing) and generates a fresh
-    // run_id for subsequent log calls. Call once near the start of main().
-    void beginRun(const std::string& output_dir = "data/csv");
+    // Creates a new run directory and run_id
+    void beginRun(const std::string& output_dir = "data/runs");
 
     const std::string& runId() const { return run_id_; }
+    const std::string& runDir() const { return run_dir_; }
 
-    // --- Logging methods, one per instrumented category -----------------
+    // ---------------------------------------------------------------------
+    // Logging APIs
+    // ---------------------------------------------------------------------
 
-    // Matrix-vector multiplication, e.g. R^T*(p-mean) or R*local+mean.
     void logMatrixMultiplication(const std::string& operation,
                                   const eigen_ops::Mat3& matrix,
                                   const eigen_ops::Vec3& input,
@@ -84,16 +63,19 @@ private:
         std::atomic<std::uint64_t> next_row_id{0};
     };
 
-    // Returns (creating/opening if necessary) the file for `category`,
-    // writing `header` as the first line if the file is newly created.
     CsvFile& fileFor(const std::string& category, const std::string& header);
 
-    // Wall-clock milliseconds since epoch, for the timestamp_ms column.
     static long long nowMs();
 
     std::mutex mutex_;
-    std::string output_dir_ = "data/csv";
+
+    // ---------------------------------------------------------------------
+    // FIX: run-based isolation (this is what was missing)
+    // ---------------------------------------------------------------------
+    std::string output_dir_ = "data/runs";
+    std::string run_dir_;
     std::string run_id_ = "unset_run";
+
     std::map<std::string, std::unique_ptr<CsvFile>> files_;
 };
 
