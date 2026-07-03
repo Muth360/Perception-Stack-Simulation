@@ -80,6 +80,94 @@ Run (synthetic point cloud by default):
 Output image: `data/output_scene.png`. Full structured log:
 `data/perception_sim.log`.
 
+## CSV instrumentation
+
+Every run appends structured, per-event rows to CSV files under
+`data/csv/`, each tagged with a `run_id` (timestamp + random suffix,
+generated once per process in `CsvLogger::beginRun`). Because rows from
+different runs land in the same files, you can diff or filter by `run_id`
+to compare a stock-Eigen run against a modified-Eigen run directly.
+
+| File | One row per | Key columns |
+|---|---|---|
+| `matrix_multiplications.csv` | every matrix-vector multiply in `transformToLocalFrame`/`transformToWorldFrame` (one row per point, plus box center/corners) | `operation`, `m00..m22`, `input_x/y/z`, `output_x/y/z` |
+| `centroids.csv` | every call to `computeCentroid` | `num_points`, `x`, `y`, `z` |
+| `covariance_matrices.csv` | every call to `computeCovariance` | `num_points`, `c00,c01,c02,c11,c12,c22` (upper triangle; symmetric) |
+| `pca_eigenvalues.csv` | every call to `computePca` | `lambda0,lambda1,lambda2` (ascending) |
+| `pca_eigenvectors.csv` | every call to `computePca` | `v0_x..v2_z` (columns = eigenvectors, matching `lambda0..lambda2` order) |
+| `bounding_boxes.csv` | every finalized `OrientedBoundingBox` | `center_x/y/z`, `axis0..axis2`, `half_extent_x/y/z` |
+| `cluster_centers.csv` | every finalized per-object center reported in `PipelineResult` | `num_points`, `x`, `y`, `z` |
+
+All rows share `run_id`, `timestamp_ms`, `row_id` (per-file sequence
+number), and a `context` tag (e.g. `cluster_2`, `cluster_2:point_14`,
+`cluster_2:corner_5`) so per-point/per-cluster events can be traced back
+to a specific object. `centroids.csv`/`covariance_matrices.csv` fire for
+*every* centroid/covariance calculation (including the one nested inside
+each PCA call), while `cluster_centers.csv` fires only for the finalized,
+downstream-facing center of each detected object — the two intentionally
+overlap in value but differ in scope, since one is the raw math primitive
+and the other is the pipeline's final output.
+
+To compare two runs, run the pipeline twice (optionally with
+`EIGEN3_INCLUDE_DIR` pointed at a different Eigen build between runs),
+then filter/group each CSV by `run_id` — e.g. with `pandas`:
+
+```python
+import pandas as pd
+df = pd.read_csv("data/csv/pca_eigenvectors.csv")
+baseline = df[df.run_id == "20260703-140501-abc123"]
+modified = df[df.run_id == "20260703-141122-def456"]
+diff = baseline.merge(modified, on="context", suffixes=("_base", "_mod"))
+```
+
+## Comparing two runs (Python)
+
+`scripts/analysis/` contains a self-contained set of Python scripts that
+automate exactly that comparison: point them at two `run_id`s and they
+produce error metrics, CSV summaries, plots, and a visual overlay.
+
+```bash
+# 1. Build + run once against stock Eigen, then again against your
+#    modified Eigen (see "Swapping in a modified Eigen" above). Each run
+#    gets its own run_id automatically.
+
+# 2. See which run_ids are available:
+./scripts/analysis/list_runs.py --csv-dir data/csv
+
+# 3. Compare two of them (or use scripts/compare_runs.sh, which sets up
+#    a venv with the required dependencies automatically):
+./scripts/compare_runs.sh RUN_ID_A RUN_ID_B
+```
+
+This produces `data/comparison/<RUN_ID_A>_vs_<RUN_ID_B>/`, containing:
+
+| Output | What it shows |
+|---|---|
+| `per_cluster_comparison.csv` | Every metric below, one row per matched cluster pair |
+| `unmatched_clusters_run_a.csv` / `_run_b.csv` | Clusters present in only one run (concrete detail behind the cluster-count difference) |
+| `aggregate_metrics.csv`, `cluster_count_summary.csv`/`.json` | Mean/max/std per metric, and overall cluster counts |
+| `centroid_error_per_cluster.png`, `_histogram.png` | Centroid error: Euclidean distance between matched cluster centers |
+| `bbox_center_error_per_cluster.png`, `bbox_size_error_per_cluster.png` | Bounding box error: center distance and per-axis half-extent difference |
+| `orientation_error_per_cluster.png`, `_histogram.png` | Orientation error: geodesic angle (degrees) between PCA/box axes, corrected for eigenvector sign ambiguity |
+| `eigenvalue_error_per_cluster.png` | PCA eigenvalue drift (bonus signal for root-causing where numerical differences originate) |
+| `centroid_vs_orientation_error.png`, `headline_metrics_summary.png` | Cross-metric summary views |
+| `overlay_topdown.png` | Top-down visualization overlay: both runs' bounding-box footprints and centroids, with displacement lines between matched clusters and hollow squares marking unmatched (extra/missing) clusters |
+
+**Matching strategy**: clusters are matched between runs by nearest
+centroid (Hungarian/optimal assignment on pairwise Euclidean distance), not
+by index or context string. This matters because a numerical change could,
+via PCL's own internal Eigen dependency (see the dependency analysis),
+shift which points survive filtering/clustering upstream of PCA — matching
+by index alone would silently misattribute differences if cluster order or
+count changed between runs.
+
+Run scripts individually if you want intermediate access (all live in
+`scripts/analysis/` and are plain Python, importable from a notebook):
+`compute_metrics.py` (metrics only), `generate_report.py` (CSV writers),
+`generate_plots.py`, `generate_overlay.py`, `common.py` (shared helpers:
+CSV loading, cluster matching, rotation-angle math).
+
+
 Run tests:
 
 ```bash
@@ -108,4 +196,3 @@ Run tests:
 - New Eigen-based computation: add a function to `eigen_ops.hpp/.cpp` only;
   keep the rest of the codebase Eigen-free.
 - New visualization overlay: extend `visualization.cpp`'s `renderScene`.
-
